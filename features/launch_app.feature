@@ -1,3 +1,4 @@
-Feature: Installazione App
-  Scenario: Verifica installazione e avvio
-    Given l'app viene installata e avviata sul device
+Feature: Install and launch the application
+  Scenario: Verify that the application can be installed and launched for the first time
+    Given the device is ready for a new installation
+    When the application is launched for the first time
