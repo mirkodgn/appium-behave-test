@@ -1,0 +1,12 @@
+# Ambiente virtuale
+venv-mobile-test/
+__pycache__/
+
+# Variabili d'ambiente (dati sensibili)
+.env
+
+# File di sistema Mac
+.DS_Store
+
+# L'APK (pesante, meglio non caricarlo su Git)
+app/*.apk
