@@ -17,7 +17,7 @@ def step_impl(context):
     except Exception as e:
         raise Exception(f"Il dispositivo non risponde ai comandi Appium: {e}")
     
-@when('the application is launched for the first time')
+@then('the application is launched for the first time')
 def step_impl(context):
     # Diamo all'app fino a 15 secondi per caricarsi e mostrare il primo elemento
     # Sostituiremo 'ID_DELLA_PRIMA_SCHERMATA' con quello vero trovato con l'Inspector
