@@ -36,4 +36,49 @@ def step_impl(context):
     except Exception:
         print("L'app ci sta mettendo troppo a caricare o è crashata all'avvio.")
         raise
+
+#---
+
+@given('l\'applicazione Speedtest è stata avviata correttamente')
+def step_impl(context):
+    # ID recuperato dal tuo comando ADB
+    speedtest_package = "org.zwanoo.android.speedtest"
+    
+    print(f"\n[INFO] Passaggio all'app Speedtest: {speedtest_package}")
+    
+    try:
+        # Verifichiamo se l'app è installata prima di provare ad aprirla
+        if not context.driver.is_app_installed(speedtest_package):
+            raise Exception(f"L'app {speedtest_package} non è installata sul dispositivo!")
+
+        # Attiviamo l'app (la porta in primo piano)
+        context.driver.activate_app(speedtest_package)
+        
+        # Speedtest a volte è lento a caricare la UI dopo lo splash screen
+        wait = WebDriverWait(context.driver, 25)
+        
+        # Cerchiamo il pulsante "VAI". 
+        # Di solito Ookla usa un'Accessibility ID o un testo specifico.
+        # Proviamo a cercarlo per ID o Testo (VAI / GO)
+        print("[DEBUG] Ricerca del pulsante VAI...")
+        
+        # Tipico ID del tasto VAI in Speedtest (può variare, ma spesso è questo):
+    #     go_button_selector = (AppiumBy.ID, "org.zwanoo.android.speedtest:id/go_button")
+        
+    #     # Se l'ID fallisce, usiamo una strategia di riserva col testo
+    #     try:
+    #         context.go_button = wait.until(EC.element_to_be_clickable(go_button_selector))
+    #     except:
+    #         print("[DEBUG] ID non trovato, provo con il testo 'VAI'...")
+    #         context.go_button = wait.until(
+    #             EC.element_to_be_clickable((AppiumBy.XPATH, "//*[contains(@text, 'VAI') or contains(@text, 'GO')]"))
+    #         )
+        
+    #     print("[SUCCESS] Speedtest pronto. Pulsante VAI individuato.")
+        
+    except Exception as e:
+        print(f"[ERRORE] Impossibile avviare Speedtest: {e}")
+        # Salviamo uno screenshot per vedere cosa è apparso (magari un pop-up?)
+        #context.driver.save_screenshot("speedtest_launch_error.png")
+        raise
     
