@@ -5,6 +5,7 @@ from appium.webdriver.common.appiumby import AppiumBy
 import time
 import re
 import os
+from utils.downloader import *
 
 @given('the device is ready for a new installation')
 def step_impl(context):
@@ -205,7 +206,7 @@ def step_impl(context):
         # Fallback rapido nel caso l'activity fallisca
         context.driver.activate_app(app_id)
 
-@when('the user selects the first non-sponsored video from the home feed')
+@when('the user selects the first video from the home feed')
 def step_impl(context):
     wait = WebDriverWait(context.driver, 15)
     print("[INFO] Searching for the first organic video...")
@@ -227,34 +228,37 @@ def step_impl(context):
 
 @then('the video should start playing and the playback time should increase')
 def step_impl(context):
-    print("[INFO] Verifying playback...")
+    # Pulizia finale post-click (per chat o ads pre-roll)
+    clean_youtube_ui(context.driver)
     
-    # Aspettiamo che il player sia caricato. 
-    # Cerchiamo l'elemento che indica il tempo corrente o la visualizzazione del player
     wait = WebDriverWait(context.driver, 20)
-    
+    print("[INFO] Verifica progresso video...")
+
     try:
-        # Tocco lo schermo per far apparire i controlli (overlay) se necessario
-        context.driver.tap([(540, 500)]) 
+        # 1. Tocco per mostrare la SeekBar
+        context.driver.tap([(540, 500)])
         
-        # Cerchiamo l'elemento del tempo di riproduzione
-        time_element = wait.until(EC.presence_of_element_located((AppiumBy.ID, "com.google.android.youtube:id/time_bar_current_time")))
+        # 2. Lettura tempo iniziale dalla SeekBar (content-desc)
+        seek_bar = wait.until(EC.presence_of_element_located((AppiumBy.XPATH, "//android.widget.SeekBar")))
+        t1_desc = seek_bar.get_attribute("content-desc")
+        print(f"[DEBUG] Tempo T1: {t1_desc}")
         
-        # Leggiamo il tempo iniziale
-        initial_time = time_element.text
-        print(f"[DEBUG] Initial playback time: {initial_time}")
+        # 3. Attesa riproduzione effettiva
+        time.sleep(10)
         
-        # Attendiamo 5 secondi di riproduzione reale
-        time.sleep(5)
+        # 4. Lettura tempo finale
+        context.driver.tap([(540, 500)])
+        t2_desc = seek_bar.get_attribute("content-desc")
+        print(f"[DEBUG] Tempo T2: {t2_desc}")
         
-        # Ricontrolliamo il tempo
-        new_time = time_element.text
-        print(f"[DEBUG] New playback time: {new_time}")
+        # 5. Assert: le stringhe descrittive devono differire
+        assert t1_desc != t2_desc, f"Il video è fermo! ({t1_desc})"
         
-        # Validazione: il tempo deve essere cambiato
-        assert new_time != initial_time, f"Playback stuck! Time remained at {initial_time}"
-        print("[SUCCESS] Video is playing correctly. Connection is active!")
+        # Log del risultato pulito
+        match = re.search(r"^(.*?)\s+di", t2_desc)
+        pos = match.group(1) if match else t2_desc
+        print(f"[SUCCESS] Connessione OK! Video in riproduzione a: {pos}")
 
     except Exception as e:
-        print(f"[ERRORE] Playback verification failed: {e}")
+        print(f"[ERRORE] Playback non confermato: {e}")
         raise
