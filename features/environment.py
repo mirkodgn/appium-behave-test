@@ -7,7 +7,7 @@ from appium import webdriver
 from appium.options.android import UiAutomator2Options
 
 #gestione download di file (piccoli o grandi) ospitati su Google Drive
-from utils.downloader import *
+from utils.utils import *
 
 load_dotenv()
 

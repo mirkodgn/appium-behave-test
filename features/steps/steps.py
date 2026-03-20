@@ -5,7 +5,7 @@ from appium.webdriver.common.appiumby import AppiumBy
 import time
 import re
 import os
-from utils.downloader import *
+from utils.utils import *
 
 @given('the device is ready for a new installation')
 def step_impl(context):
