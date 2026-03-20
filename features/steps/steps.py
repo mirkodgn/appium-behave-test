@@ -4,33 +4,58 @@ from selenium.webdriver.support import expected_conditions as EC
 from appium.webdriver.common.appiumby import AppiumBy
 import time
 import re
+import os
 
 @given('the device is ready for a new installation')
 def step_impl(context):
-    # Verifichiamo che il driver sia stato inizializzato
-    if context.driver is None:
-        raise Exception("Errore: Il driver Appium non è stato inizializzato nel before_scenario.")
+    current_dir = os.path.dirname(os.path.abspath(__file__)) # features/steps
+    project_root = os.path.abspath(os.path.join(current_dir, "..", "..")) # root del progetto
     
-    # Facciamo una chiamata veloce al server per vedere se il device risponde
-    # 'current_package' ci dice qual è l'app aperta in questo momento
+    # Costruiamo il path dell'APK
+    apk_path = os.path.join(project_root, "app", os.getenv("APP_NAME"))
+    
+    print(f"\n[INFO] Path calcolato: {apk_path}")
+
+    if not os.path.exists(apk_path):
+        raise Exception(f"L'APK non esiste al percorso: {apk_path}. Controlla la posizione della cartella 'app'!")
+
     try:
-        package = context.driver.current_package
-        print(f"[DEBUG] Device connesso. App attuale: {package}")
+        print(f"[INFO] Installazione dell'APK...")
+        context.driver.install_app(apk_path)
+        print("[SUCCESS] App installata correttamente.")
     except Exception as e:
-        raise Exception(f"Il dispositivo non risponde ai comandi Appium: {e}")
-    
-@then('the application is launched for the first time')
+        raise Exception(f"Errore critico durante l'installazione: {e}")
+
+@when('I launch the Sky Go app for the first time')
 def step_impl(context):
-    # Diamo all'app fino a 15 secondi per caricarsi e mostrare il primo elemento
-    # Sostituiremo 'ID_DELLA_PRIMA_SCHERMATA' con quello vero trovato con l'Inspector
+    app_id = "it.sky.anywhere"
+    # Activity iniziale standard (StartupActivity è solitamente quella che gestisce il primo avvio)
+    app_activity = "com.bskyb.skygo.features.startup.StartupActivity"
+    
+    print(f"[INFO] Lancio dell'app {app_id}...")
+
+    try:
+        # Lanciamo l'attività di startup
+        context.driver.execute_script('mobile: startActivity', {
+            'component': f"{app_id}/{app_activity}"
+        })
+        
+        wait = WebDriverWait(context.driver, 20)
+        wait.until(lambda d: d.current_package == app_id)
+        print(f"[SUCCESS] Sky Go è attivo.")
+
+    except Exception as e:
+        print(f"[WARNING] StartActivity fallito, provo activate_app genertico: {e}")
+        context.driver.activate_app(app_id)
+    
+@then('the first page of the app is displayed correctly')
+def step_impl(context):
     wait = WebDriverWait(context.driver, 15)
     
     print("In attesa del caricamento dell'interfaccia utente...")
     
     # Questo comando aspetta che l'app sia 'stabile' e visibile
     try:
-        # ESEMPIO: Aspetta che l'elemento con un certo ID sia presente
-        # Sostituisci "ID_REALE_TROVATO" con quello che vedi in Appium Inspector
         cookie = wait.until(
             EC.presence_of_element_located((AppiumBy.XPATH, '//android.widget.ScrollView[@resource-id="PrivacyOptionsSummaryColumn"]'))
         )
@@ -39,11 +64,10 @@ def step_impl(context):
         print("L'app ci sta mettendo troppo a caricare o è crashata all'avvio.")
         raise
 
-#---
+#---SPEEDTEST TEST---
 
 @given('Speedtest application launched successfully')
 def step_impl(context):
-    # ID recuperato dal tuo comando ADB
     speedtest_package = "org.zwanoo.android.speedtest"
     
     print(f"\n[INFO] Passaggio all'app Speedtest: {speedtest_package}")
@@ -60,28 +84,11 @@ def step_impl(context):
         wait = WebDriverWait(context.driver, 25)
         
         # Cerchiamo il pulsante "VAI". 
-        # Di solito Ookla usa un'Accessibility ID o un testo specifico.
         # Proviamo a cercarlo per ID o Testo (VAI / GO)
         print("[DEBUG] Ricerca del pulsante VAI...")
         
-        # Tipico ID del tasto VAI in Speedtest (può variare, ma spesso è questo):
-    #     go_button_selector = (AppiumBy.ID, "org.zwanoo.android.speedtest:id/go_button")
-        
-    #     # Se l'ID fallisce, usiamo una strategia di riserva col testo
-    #     try:
-    #         context.go_button = wait.until(EC.element_to_be_clickable(go_button_selector))
-    #     except:
-    #         print("[DEBUG] ID non trovato, provo con il testo 'VAI'...")
-    #         context.go_button = wait.until(
-    #             EC.element_to_be_clickable((AppiumBy.XPATH, "//*[contains(@text, 'VAI') or contains(@text, 'GO')]"))
-    #         )
-        
-    #     print("[SUCCESS] Speedtest pronto. Pulsante VAI individuato.")
-        
     except Exception as e:
         print(f"[ERRORE] Impossibile avviare Speedtest: {e}")
-        # Salviamo uno screenshot per vedere cosa è apparso (magari un pop-up?)
-        #context.driver.save_screenshot("speedtest_launch_error.png")
         raise
 
 @when('user taps on button "VAI"')
@@ -159,4 +166,95 @@ def step_impl(context):
 
     except Exception as e:
         print(f"[ERRORE] Test di rete troppo lento o UI non riconosciuta: {e}")
+        raise
+
+#---YOUTUBE TEST---
+
+@given('the YouTube application is launched correctly')
+def step_impl(context):
+    app_id = "com.google.android.youtube"
+    # Il link profondo alla home di YouTube
+    home_deep_link = "https://www.youtube.com"
+    
+    print(f"\n[INFO] Lancio YouTube tramite Deep Link...")
+
+    try:
+        # 1. Chiudiamo Sky Go per evitare sovrapposizioni
+        context.driver.terminate_app("it.sky.anywhere")
+        
+        # 2. Forza l'apertura tramite URL (Deep Linking)
+        # Questo comando dice ad Android: "Apri l'app che gestisce questo URL"
+        context.driver.get(home_deep_link)
+        
+        # 3. Verifica del pacchetto
+        wait = WebDriverWait(context.driver, 15)
+        wait.until(lambda d: d.current_package == app_id)
+        
+        print("[SUCCESS] YouTube è stato aperto correttamente tramite Deep Link.")
+        time.sleep(2) # Pausa per stabilizzare la UI
+
+    except Exception as e:
+        print(f"[WARNING] Deep Link fallito, provo il metodo standard...")
+        try:
+            context.driver.activate_app(app_id)
+        except:
+            raise Exception("Impossibile aprire YouTube. Controlla se l'app è disabilitata o bloccata.")
+
+    except Exception as e:
+        print(f"[ERRORE] Lancio fallito: {e}")
+        # Fallback rapido nel caso l'activity fallisca
+        context.driver.activate_app(app_id)
+
+@when('the user selects the first non-sponsored video from the home feed')
+def step_impl(context):
+    wait = WebDriverWait(context.driver, 15)
+    print("[INFO] Searching for the first organic video...")
+
+    # Cerchiamo tutti i video nel feed 'results'
+    # Utilizziamo un selettore che punta ai titoli dei video o ai contenitori cliccabili
+    # Dall'XML, i video hanno content-desc dettagliati
+    try:
+        # XPATH che esclude i video contenenti la parola 'Sponsorizzato' (Sponsorizzato in italiano)
+        video_selector = "//android.view.ViewGroup[contains(@content-desc, 'riproduci video') and not(contains(@content-desc, 'Sponsorizzato'))]"
+        
+        first_video = wait.until(EC.element_to_be_clickable((AppiumBy.XPATH, video_selector)))
+        print(f"[DEBUG] Video found: {first_video.get_attribute('content-desc')[:50]}...")
+        first_video.click()
+        
+    except Exception as e:
+        print(f"[ERRORE] Could not find a valid video: {e}")
+        raise
+
+@then('the video should start playing and the playback time should increase')
+def step_impl(context):
+    print("[INFO] Verifying playback...")
+    
+    # Aspettiamo che il player sia caricato. 
+    # Cerchiamo l'elemento che indica il tempo corrente o la visualizzazione del player
+    wait = WebDriverWait(context.driver, 20)
+    
+    try:
+        # Tocco lo schermo per far apparire i controlli (overlay) se necessario
+        context.driver.tap([(540, 500)]) 
+        
+        # Cerchiamo l'elemento del tempo di riproduzione
+        time_element = wait.until(EC.presence_of_element_located((AppiumBy.ID, "com.google.android.youtube:id/time_bar_current_time")))
+        
+        # Leggiamo il tempo iniziale
+        initial_time = time_element.text
+        print(f"[DEBUG] Initial playback time: {initial_time}")
+        
+        # Attendiamo 5 secondi di riproduzione reale
+        time.sleep(5)
+        
+        # Ricontrolliamo il tempo
+        new_time = time_element.text
+        print(f"[DEBUG] New playback time: {new_time}")
+        
+        # Validazione: il tempo deve essere cambiato
+        assert new_time != initial_time, f"Playback stuck! Time remained at {initial_time}"
+        print("[SUCCESS] Video is playing correctly. Connection is active!")
+
+    except Exception as e:
+        print(f"[ERRORE] Playback verification failed: {e}")
         raise

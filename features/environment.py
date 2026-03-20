@@ -36,19 +36,15 @@ def before_all(context):
         print(f"\n[INFO] APK già presente in {apk_path}. Salto il download.\n")
 
 def before_scenario(context, scenario):
-    """Configura e lancia Appium per ogni scenario"""
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    apk_path = os.path.join(project_root, "app", os.getenv("APP_NAME"))
-
     options = UiAutomator2Options()
     options.platform_name = os.getenv("PLATFORM_NAME", "Android")
     options.device_name = os.getenv("DEVICE_NAME", "Android Device")
     options.automation_name = os.getenv("AUTOMATION_NAME", "UiAutomator2")
-    options.app = apk_path
     
-    # Se vuoi velocizzare i test ed evitare che l'app venga reinstallata ogni volta
-    # (ma solo se l'app è già sul telefono), puoi commentare full_reset.
-    # options.set_capability("noReset", True) 
+    # Usiamo 'noReset' per evitare che Appium pulisca i dati delle app ogni volta
+    options.set_capability("noReset", True)
+    # Impediamo ad Appium di cercare un'activity di default all'avvio del driver
+    options.set_capability("autoLaunch", False) 
 
     try:
         context.driver = webdriver.Remote(os.getenv("APPIUM_SERVER"), options=options)
