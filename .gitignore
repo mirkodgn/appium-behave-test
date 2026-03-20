@@ -10,3 +10,6 @@ __pycache__/
 
 # L'APK (pesante, meglio non caricarlo su Git)
 app/*.apk
+
+# Report di test (generati dinamicamente)
+report_speedtest.txt
