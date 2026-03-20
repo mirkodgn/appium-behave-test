@@ -3,6 +3,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from appium.webdriver.common.appiumby import AppiumBy
 import time
+import re
 
 @given('the device is ready for a new installation')
 def step_impl(context):
@@ -118,42 +119,44 @@ def step_impl(context):
 
 @then('the values of "Download" and "Upload" should be extracted and saved')
 def step_impl(context):
-    # Usiamo un'attesa lunga per il valore finale, non solo per il contenitore
-    wait = WebDriverWait(context.driver, 60)
-    print("\n[INFO] In attesa dei risultati finali (Download e Upload)...")
+    wait = WebDriverWait(context.driver, 45, poll_frequency=0.5)
+    print("\n[INFO] Monitoraggio dinamico dei risultati...")
 
     try:
-        # 1. Aspettiamo specificamente che il VALORE del download appaia
-        wait.until(
-            EC.visibility_of_element_located((AppiumBy.ID, "org.zwanoo.android.speedtest:id/txt_test_result_value"))
-        )
-        
-        # Recuperiamo i due contenitori per distinguere Download da Upload
-        download_container = context.driver.find_element(AppiumBy.ID, "org.zwanoo.android.speedtest:id/download_result_view")
-        upload_container = context.driver.find_element(AppiumBy.ID, "org.zwanoo.android.speedtest:id/upload_result_view")
+        # 1. Definiamo una funzione interna per il controllo dinamico
+        def results_are_ready(driver):
+            try:
+                # Cerchiamo i contenitori
+                d_cont = driver.find_element(AppiumBy.ID, "org.zwanoo.android.speedtest:id/download_result_view")
+                u_cont = driver.find_element(AppiumBy.ID, "org.zwanoo.android.speedtest:id/upload_result_view")
+                
+                # Estraiamo i testi
+                d_val = d_cont.find_element(AppiumBy.ID, "org.zwanoo.android.speedtest:id/txt_test_result_value").text
+                u_val = u_cont.find_element(AppiumBy.ID, "org.zwanoo.android.speedtest:id/txt_test_result_value").text
 
-        # 2. Estrazione sicura dentro i rispettivi contenitori
-        download_value = download_container.find_element(AppiumBy.ID, "org.zwanoo.android.speedtest:id/txt_test_result_value").text
-        upload_value = upload_container.find_element(AppiumBy.ID, "org.zwanoo.android.speedtest:id/txt_test_result_value").text
+                # CONDIZIONE DI USCITA: 
+                # I valori devono essere numerici e diversi da "0", "-" o vuoti
+                # Usiamo una regex semplice per verificare che ci sia almeno un numero
+                if re.match(r"^[1-9]\d*", d_val) and re.match(r"^[1-9]\d*", u_val):
+                    return d_val, u_val
+                return False
+            except:
+                return False
 
-        # 3. Controllo anti-vuoto
-        if download_value == "-" or download_value == "0":
-             print("[DEBUG] Valori non ancora definitivi, attendo altri 5 secondi...")
-             time.sleep(5)
-             download_value = download_container.find_element(AppiumBy.ID, "org.zwanoo.android.speedtest:id/txt_test_result_value").text
-             upload_value = upload_container.find_element(AppiumBy.ID, "org.zwanoo.android.speedtest:id/txt_test_result_value").text
+        # 2. Avviamo il loop di attesa intelligente
+        # wait.until restituirà la tupla (download, upload) non appena la funzione sopra ritorna True
+        download_value, upload_value = wait.until(results_are_ready)
 
-        # --- SCRITTURA SU FILE REPORT ---
+        # 3. Scrittura immediata (senza sleep aggiuntivi!)
         with open("report_speedtest.txt", "a") as f:
             f.write(f"Test del {time.ctime()}: Download {download_value}, Upload {upload_value}\n")
-        # --------------------------------
 
         print("-" * 30)
-        print(f"RISULTATO DOWNLOAD: {download_value} Mbps")
-        print(f"RISULTATO UPLOAD:   {upload_value} Mbps")
+        print(f"✅ RISULTATI ESTRATTI IN TEMPO REALE")
+        print(f"DOWNLOAD: {download_value} Mbps")
+        print(f"UPLOAD:   {upload_value} Mbps")
         print("-" * 30)
 
     except Exception as e:
-        print(f"[ERRORE] Impossibile leggere i risultati: {e}")
+        print(f"[ERRORE] Test di rete troppo lento o UI non riconosciuta: {e}")
         raise
-
