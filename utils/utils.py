@@ -4,6 +4,7 @@ import os
 from appium.webdriver.common.appiumby import AppiumBy
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import StaleElementReferenceException
 
 def download_file_from_google_drive(file_id, destination):
     """Scarica l'APK da Google Drive usando gdown"""
@@ -138,66 +139,76 @@ def setup_wifi(driver, ssid, password):
             raise
 
 def forget_wifi(driver, ssid):
-    """Entra nei dettagli della rete e la rimuove (ColorOS/OPPO/Realme)"""
+    """
+    Entra nei dettagli della rete e la rimuove.
+    Gestisce il refresh dinamico della lista Wi-Fi (StaleElement).
+    """
     wait = WebDriverWait(driver, 15)
     
-    print(f"\n[CLEANUP] Apertura impostazioni Wi-Fi per: {ssid}")
+    print(f"\n[CLEANUP] Apertura impostazioni Wi-Fi per dimenticare: {ssid}")
+    
+    # 1. Apertura impostazioni tramite Intent
     driver.execute_script('mobile: startActivity', {
         'action': 'android.settings.WIFI_SETTINGS'
     })
     
-    try:
-        # 1. Click sulla rete connessa (Kineton02)
-        print(f"[CLEANUP] Entro nei dettagli di '{ssid}'...")
-        # Cerchiamo la riga che ha il testo dell'SSID
-        network_row = wait.until(EC.element_to_be_clickable(
-            (AppiumBy.XPATH, f"//*[@text='{ssid}']")
-        ))
-        network_row.click()
-        time.sleep(2) # Attesa caricamento pagina dettagli
+    # Piccolo respiro per far stabilizzare la scansione delle reti
+    time.sleep(2)
 
-        # 2. Click su "Rimuovi questa rete" usando il TESTO
+    try:
+        # 2. Click sulla rete con logica di RETRY per Stale Element
+        print(f"[CLEANUP] Cerco la rete '{ssid}' nella lista...")
+        
+        found_and_clicked = False
+        for attempt in range(3):
+            try:
+                # Cerchiamo l'elemento (fresco di DOM) ad ogni tentativo
+                network_row = wait.until(EC.presence_of_element_located(
+                    (AppiumBy.XPATH, f"//*[@text='{ssid}']")
+                ))
+                network_row.click()
+                print(f"[CLEANUP] Ingresso nei dettagli di {ssid} effettuato.")
+                found_and_clicked = True
+                break
+            except StaleElementReferenceException:
+                print(f"[DEBUG] Lista Wi-Fi aggiornata durante il click (Attempt {attempt + 1}). Riprovo...")
+                time.sleep(1)
+            except Exception as e:
+                print(f"[DEBUG] Errore durante il click sulla rete: {e}")
+                time.sleep(1)
+        
+        if not found_and_clicked:
+            raise Exception(f"Impossibile selezionare la rete {ssid} (Elemento sempre Stale o non trovato).")
+
+        # 3. Click su "Rimuovi questa rete" (Tasto Rosso nel menu dettagli)
         print("[CLEANUP] Cerco il tasto 'Rimuovi questa rete'...")
         
-        # Proviamo prima col testo esatto, poi con una ricerca parziale
-        forget_selectors = [
-            (AppiumBy.XPATH, "//*[@text='Rimuovi questa rete']"),
-            (AppiumBy.XPATH, "//*[contains(@text, 'Rimuovi')]"),
-            (AppiumBy.ID, "com.coloros.wirelesssettings:id/forget_btn") # Fallback ID
-        ]
-
-        found_btn = False
-        for selector, value in forget_selectors:
-            try:
-                # Usiamo un timeout brevissimo per ogni tentativo
-                btn = WebDriverWait(driver, 3).until(EC.element_to_be_clickable((selector, value)))
-                btn.click()
-                print(f"[CLEANUP] Tasto rimosso cliccato con: {value}")
-                found_btn = True
-                break
-            except:
-                continue
+        # Usiamo l'Xpath testuale che è il più sicuro su ColorOS
+        forget_xpath = "//*[@text='Rimuovi questa rete']"
         
-        if not found_btn:
-            raise Exception("Impossibile trovare il tasto per rimuovere la rete.")
+        forget_btn = wait.until(EC.element_to_be_clickable((AppiumBy.XPATH, forget_xpath)))
+        forget_btn.click()
 
-        # 3. Gestione Pop-up di conferma
-        print("[CLEANUP] Gestione eventuale conferma...")
+        # 4. Gestione del Pop-up di conferma finale
+        print("[CLEANUP] Gestione pop-up di conferma...")
         try:
-            # ColorOS spesso mostra un secondo tasto "Rimuovi" in rosso nel pop-up
-            confirm_btn = WebDriverWait(driver, 4).until(EC.element_to_be_clickable(
-                (AppiumBy.XPATH, "//android.widget.Button[@text='Rimuovi' or @text='RIMUOVI']")
-            ))
+            # Cerchiamo il tasto "Rimuovi" nel dialogo di sistema
+            confirm_xpath = "//android.widget.Button[@text='Rimuovi' or @text='RIMUOVI']"
+            
+            confirm_btn = WebDriverWait(driver, 5).until(
+                EC.element_to_be_clickable((AppiumBy.XPATH, confirm_xpath))
+            )
             confirm_btn.click()
-            print("[CLEANUP] Conferma rimozione cliccata.")
+            print("[CLEANUP] Conferma rimozione completata.")
         except:
-            print("[DEBUG] Nessun pop-up di conferma apparso.")
+            print("[DEBUG] Nessun pop-up di conferma rilevato (forse rimossa direttamente).")
 
-        print(f"[SUCCESS] Rete {ssid} dimenticata.")
+        print(f"[SUCCESS] Rete {ssid} rimossa dal dispositivo.")
+        time.sleep(2)
 
     except Exception as e:
-        print(f"[ERROR] Fallimento cleanup: {e}")
-        # Salviamo l'XML di errore per vedere cosa vedeva Appium in quel momento
-        with open("error_layout_cleanup.xml", "w") as f:
+        print(f"[ERROR] Fallimento durante la rimozione della rete: {e}")
+        # Salvataggio sorgente XML in caso di errore per debug
+        with open("debug_cleanup_fail.xml", "w") as f:
             f.write(driver.page_source)
         raise

@@ -315,3 +315,42 @@ def step_impl(context):
     # Torniamo alla Home per lasciare il device pulito
     context.driver.press_keycode(3)
     print("[FINAL] Test conclusi e rete dimenticata. Device pulito.")
+
+# --- Disinstallazione app (Sky Go) ---
+
+@given('the Sky Go application is installed on the device')
+def step_impl(context):
+    app_id = "it.sky.anywhere"
+    # Verifichiamo se l'app esiste prima di provare a disinstallarla
+    if not context.driver.is_app_installed(app_id):
+        print(f"[INFO] L'app {app_id} non è presente. Nulla da disinstallare.")
+        context.app_was_present = False
+    else:
+        print(f"[INFO] L'app {app_id} è installata e pronta per la rimozione.")
+        context.app_was_present = True
+
+@when('I uninstall the Sky Go application')
+def step_impl(context):
+    app_id = "it.sky.anywhere"
+    print(f"[INFO] Rimozione dell'app {app_id} in corso...")
+    
+    try:
+        # Comando nativo Appium per disinstallare
+        context.driver.remove_app(app_id)
+        print("[SUCCESS] Comando di disinstallazione inviato.")
+    except Exception as e:
+        raise Exception(f"Errore durante la disinstallazione: {e}")
+
+@then('the Sky Go application should no longer be present')
+def step_impl(context):
+    app_id = "it.sky.anywhere"
+    
+    # Attendiamo qualche secondo per permettere al sistema di aggiornare il registro app
+    time.sleep(3)
+    
+    if context.driver.is_app_installed(app_id):
+        raise Exception(f"Fallimento: L'app {app_id} risulta ancora installata!")
+    
+    print(f"[SUCCESS] Verifica completata: {app_id} è stata rimossa correttamente.")
+    # Torna alla home come azione finale
+    context.driver.press_keycode(3)
