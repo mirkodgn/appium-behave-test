@@ -301,3 +301,17 @@ def step_impl(context):
     context.driver.press_keycode(3) 
     print("[SUCCESS] Wi-Fi configurato. Dispositivo pronto per i test delle app.")
     time.sleep(2)
+
+@when('I remove the Wi-Fi network used for testing from environment credentials')
+def step_impl(context):
+    ssid = os.getenv("WIFI_SSID")
+    if not ssid:
+        raise Exception("WIFI_SSID non presente nel file .env")
+    
+    forget_wifi(context.driver, ssid)
+
+@then('the device should no longer be connected to that network')
+def step_impl(context):
+    # Torniamo alla Home per lasciare il device pulito
+    context.driver.press_keycode(3)
+    print("[FINAL] Test conclusi e rete dimenticata. Device pulito.")
