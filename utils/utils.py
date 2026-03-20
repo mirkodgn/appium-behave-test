@@ -18,36 +18,53 @@ def download_file_from_google_drive(file_id, destination):
     print(f"--- Download completato con successo: {destination} ---\n")
 
 def clean_youtube_ui(driver):
-    """Chiude ricorsivamente gli ostacoli usando attese brevi ma attive"""
+    """Chiude ostacoli UI usando refresh forzati e click diretti"""
+    
+    # Mappa degli ostacoli con selettori e coordinate di sicurezza (opzionali)
+    # Le coordinate [x, y] sono indicative per un display 1080p, 
+    # basate sugli XML inviati (tasto 'Salta' in basso a destra, 'Chiudi' in alto a destra)
     interrupts = [
-        (AppiumBy.ID, "com.google.android.youtube:id/skip_ad_button", "Salta Annuncio"),
-        (AppiumBy.ACCESSIBILITY_ID, "Chiudi", "Play Store"),
-        (AppiumBy.XPATH, "//android.widget.Button[@content-desc='Chiudi pannello annunci']", "Pannello Sponsorizzato"),
-        (AppiumBy.ID, "com.google.android.youtube:id/close_button", "Chat/Ads Close")
+        {"selector": (AppiumBy.ID, "com.google.android.youtube:id/skip_ad_button"), "name": "Salta Annuncio"},
+        {"selector": (AppiumBy.ACCESSIBILITY_ID, "Chiudi"), "name": "Play Store"},
+        {"selector": (AppiumBy.XPATH, "//android.widget.Button[@content-desc='Chiudi pannello annunci']"), "name": "Pannello Sponsorizzato"},
+        {"selector": (AppiumBy.ID, "com.google.android.youtube:id/close_button"), "name": "Chat/Ads Close"}
     ]
-    
+
     max_attempts = 5
-    # Spostiamo il tasto "Salta" in cima perché è il più critico
-    
     for i in range(max_attempts):
-        found = False
-        for selector, value, name in interrupts:
+        found_in_round = False
+        
+        # 1. FORZA REFRESH: A volte Appium legge una cache vecchia del layout
+        _ = driver.page_source 
+        
+        for item in interrupts:
             try:
-                # Usiamo un WebDriverWait molto breve (2 secondi) invece di find_elements.
-                # Questo permette di "beccare" il tasto anche se appare con un leggero ritardo.
-                element = WebDriverWait(driver, 2.0).until(
-                    EC.element_to_be_clickable((selector, value))
+                # Usiamo presence invece di clickable per essere più aggressivi
+                element = WebDriverWait(driver, 1.5).until(
+                    EC.presence_of_element_located(item["selector"])
                 )
-                print(f"[CLEAN] {name} rilevato e cliccato.")
-                element.click()
-                time.sleep(1) # Tempo per l'animazione di chiusura
-                found = True
-                break 
+                
+                # Se l'elemento è trovato, proviamo a cliccarlo
+                print(f"[CLEAN] {item['name']} rilevato. Tento il click...")
+                
+                # Prova click standard, se fallisce usa tap sulle coordinate dell'elemento
+                try:
+                    element.click()
+                except:
+                    location = element.location
+                    size = element.size
+                    center_x = location['x'] + (size['width'] / 2)
+                    center_y = location['y'] + (size['height'] / 2)
+                    driver.tap([(center_x, center_y)])
+                    print(f"[CLEAN] {item['name']} cliccato tramite coordinate.")
+
+                time.sleep(2) # Tempo vitale per l'animazione di sparizione
+                found_in_round = True
+                break # Ricomincia il ciclo per vedere se è apparso altro
             except:
-                # Se non appare entro 2 secondi, passa al prossimo controllo
                 continue
         
-        if not found:
+        if not found_in_round:
             break
 
 def setup_wifi(driver, ssid, password):
