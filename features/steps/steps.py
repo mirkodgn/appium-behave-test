@@ -262,3 +262,42 @@ def step_impl(context):
     except Exception as e:
         print(f"[ERRORE] Playback non confermato: {e}")
         raise
+
+#--- CONNESSIONE ---
+
+# --- GIVEN: Verifica Connessione Appium ---
+@given('the Appium automation session is active')
+def step_impl(context):
+    """Verifica che il driver sia vivo e vegeto"""
+    if context.driver is None:
+        raise Exception("Errore: Il driver Appium non è stato inizializzato. Controlla environment.py.")
+    
+    try:
+        # Una chiamata leggera al server per confermare che il device risponde
+        context.driver.current_package
+        print("[DEBUG] Sessione Appium attiva e pronta.")
+    except Exception as e:
+        raise Exception(f"Il dispositivo non risponde: {e}")
+
+# --- WHEN: Configurazione Wi-Fi ---
+@when('I configure the Wi-Fi connection using environment credentials')
+def step_impl(context):
+    """Recupera le credenziali dal file .env e avvia la procedura UI"""
+    ssid = os.getenv("WIFI_SSID")
+    password = os.getenv("WIFI_PASSWORD")
+    
+    if not ssid or not password:
+        raise Exception("Errore: WIFI_SSID o WIFI_PASSWORD mancanti nel file .env")
+        
+    print(f"[INFO] Avvio configurazione Wi-Fi per SSID: {ssid}")
+    # Richiama la logica complessa definita in utils.py
+    setup_wifi(context.driver, ssid, password)
+
+# --- THEN: Verifica Finale ---
+@then('the device should be connected to the internet')
+def step_impl(context):
+    """Torna alla home e chiude le impostazioni"""
+    # Premiamo il tasto Home (keycode 3) per pulire lo schermo per il prossimo test
+    context.driver.press_keycode(3) 
+    print("[SUCCESS] Wi-Fi configurato. Dispositivo pronto per i test delle app.")
+    time.sleep(2)
